@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartLight PRO | ESP8266</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700&family=Orbitron:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <div class="card led-status-card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fas fa-lightbulb"></i></div>
+                <div>
+                    <h2 class="card-title">Sterowanie oświetleniem</h2>
+                    <p class="card-subtitle" id="led-source">Status: Ładowanie...</p>
+                </div>
+            </div>
+            <div class="led-indicator off" id="led-visual"><i class="fas fa-lightbulb led-icon"></i></div>
+            <div class="progress-container" id="progress-container" style="display: none;">
+                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <p class="sensor-label" id="led-timer">Czas do wyłączenia: -</p>
+            <div class="led-controls">
+                <button class="btn btn-primary" onclick="toggleLed()"><i class="fas fa-power-off"></i> Przełącz</button>
+                <button class="btn btn-secondary" onclick="forceRefresh()"><i class="fas fa-sync-alt"></i> Odśwież</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fas fa-sensor"></i></div>
+                <div>
+                    <h2 class="card-title">Czujniki</h2>
+                    <p class="card-subtitle">Stan środowiska</p>
+                </div>
+            </div>
+            <div class="sensor-item">
+                <p class="sensor-label">Poziom światła (LDR)</p>
+                <p class="sensor-value" id="ldr-value">---</p>
+                <div class="progress-container"><div class="progress-bar" id="ldr-bar" style="width: 0%"></div></div>
+            </div>
+            <div class="sensor-item" style="margin-top: 20px;">
+                <p class="sensor-label">Aktywność PIR</p>
+                <p class="sensor-value" id="pir-status">---</p>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fas fa-cog"></i></div>
+                <div>
+                    <h2 class="card-title">Konfiguracja</h2>
+                    <p class="card-subtitle">Ustawienia systemu</p>
+                </div>
+            </div>
+            <p class="sensor-label">Tryb automatyki:</p>
+            <div class="mode-selector" id="mode-selector">
+                <div class="mode-option" onclick="setControlMode(0)">Słońce</div>
+                <div class="mode-option" onclick="setControlMode(1)">LDR</div>
+            </div>
+            <p class="sensor-label" style="margin-top: 20px;">Próg światła (LDR):</p>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                 <input type="range" min="0" max="1023" value="500" id="ldr-range-low" class="slider" oninput="handleSliderInput()">
+                 <input type="range" min="0" max="1023" value="1023" id="ldr-range-high" class="slider" oninput="handleSliderInput()">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                <span id="ldr-threshold-display">500 - 1023</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fas fa-info-circle"></i></div>
+                <div>
+                    <h2 class="card-title">Informacje</h2>
+                    <p class="card-subtitle">Dane systemowe</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <p class="sensor-label">Wschód słońca:</p>
+                <p class="sensor-value" id="sunrise-time">--:--</p>
+            </div>
+            <div class="info-item" style="margin-top: 15px;">
+                <p class="sensor-label">Zachód słońca:</p>
+                <p class="sensor-value" id="sunset-time">--:--</p>
+            </div>
+            <div class="info-item" style="margin-top: 15px;">
+                <p class="sensor-label">Czas systemowy:</p>
+                <p class="sensor-value" id="system-time">--:--:--</p>
+            </div>
+        </div>
+        <div class="card logs-card" style="grid-column: span 2;">
+            <div class="card-header">
+                <div class="card-icon"><i class="fas fa-history"></i></div>
+                <div>
+                    <h2 class="card-title">Historia zdarzeń</h2>
+                    <p class="card-subtitle">Ostatnie aktywności</p>
+                </div>
+            </div>
+            <div class="logs-container" id="logs-container">
+                <div class="log-entry"><i class="fas fa-spinner fa-spin log-icon"></i><span class="log-message">Ładowanie historii...</span></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
