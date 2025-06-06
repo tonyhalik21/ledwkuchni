@@ -1,6 +1,6 @@
 // --- KONFIGURACJA ---
 // Zmień ten adres na adres swojego ESP w sieci lokalnej lub na adres DuckDNS
-const espAddress = "192.168.1.63"; 
+const espAddress = "http://sterowanieesp12.duckdns.org:50001/"; 
 // Alternatywnie, jeśli nie używasz DuckDNS z zewnątrz: const espAddress = "http://192.168.X.X";
 
 // --- GLOBALNE ZMIENNE ---
