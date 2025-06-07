@@ -1,109 +1,177 @@
-// --- KONFIGURACJA ---
-// Zmień ten adres na adres swojego ESP w sieci lokalnej lub na adres DuckDNS
-const espAddress = "http://sterowanieesp12.duckdns.org:50001/"; 
-// Alternatywnie, jeśli nie używasz DuckDNS z zewnątrz: const espAddress = "http://192.168.X.X";
+document.addEventListener('DOMContentLoaded', () => {
+    // --- KONFIGURACJA ---
+    // ZMIEŃ TEN ADRES NA SWÓJ ADRES DUCKDNS
+    const espAddress = "http://sterowanieesp12.duckdns.org";
 
-// --- GLOBALNE ZMIENNE ---
-let ledTotalTime = 0, ledRemainingTime = 0, updateTimeout;
+    // --- ELEMENTY DOM ---
+    const elements = {
+        connectionStatus: document.getElementById('connection-status'),
+        spinner: document.querySelector('.spinner'),
+        ledIndicator: document.getElementById('led-indicator-icon'),
+        ledStatusHeading: document.getElementById('led-status-heading'),
+        ledSourceText: document.getElementById('led-source-text'),
+        ledTimerText: document.getElementById('led-timer-text'),
+        progressBarContainer: document.querySelector('.progress-bar-container'),
+        progressBar: document.getElementById('led-progress-bar'),
+        toggleButton: document.getElementById('toggle-button'),
+        modeButtons: document.querySelectorAll('.mode-button'),
+        pirStatusText: document.getElementById('pir-status-text'),
+        sunriseTime: document.getElementById('sunrise-time'),
+        sunsetTime: document.getElementById('sunset-time'),
+        ldrValue: document.getElementById('ldr-value'),
+        ldrMinSlider: document.getElementById('ldr-min-slider'),
+        ldrMaxSlider: document.getElementById('ldr-max-slider'),
+        rangeMinVal: document.getElementById('range-min-val'),
+        rangeMaxVal: document.getElementById('range-max-val'),
+        logsContainer: document.getElementById('logs-container')
+    };
 
-// --- GŁÓWNA LOGIKA ---
-function updateUI(data) {
-    if (data.error) {
-        console.error('Otrzymano błąd z ESP:', data.error);
-        document.getElementById('led-source').textContent = 'Błąd ESP: ' + data.error;
-        return;
-    }
-
-    const ledVisual = document.getElementById('led-visual'), ledSourceEl = document.getElementById('led-source'), ledTimerEl = document.getElementById('led-timer'), progressContainer = document.getElementById('progress-container'), progressBar = document.getElementById('progress-bar');
-    if (data.ledState) {
-        ledVisual.className = 'led-indicator led-on'; ledSourceEl.textContent = `Włączony (${data.ledSource})`;
-        if (data.timeRemaining > 0) {
-            progressContainer.style.display = 'block'; const minutes = Math.floor(data.timeRemaining / 60), seconds = data.timeRemaining % 60;
-            ledTimerEl.textContent = `Wyłączy się za: ${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-            if (!ledTotalTime || data.timeRemaining > ledRemainingTime) ledTotalTime = data.timeRemaining;
-            ledRemainingTime = data.timeRemaining; const percent = (ledRemainingTime / ledTotalTime) * 100;
-            progressBar.style.width = `${percent}%`
-        } else {
-            progressContainer.style.display = 'none'; ledTimerEl.textContent = 'Włączony bez limitu czasu'; ledTotalTime = 0
+    // --- STAN APLIKACJI ---
+    let state = {
+        totalTime: 0,
+        isUpdatingSliders: false,
+    };
+    
+    // --- FUNKCJE API ---
+    const api = {
+        async getStatus() {
+            const response = await fetch(`${espAddress}/status`);
+            if (!response.ok) throw new Error('Nie udało się pobrać statusu');
+            return response.json();
+        },
+        async toggleLed() {
+            await fetch(`${espAddress}/toggle`, { method: 'POST' });
+        },
+        async setControlMode(mode) {
+            await fetch(`${espAddress}/set_control_mode?mode=${mode}`);
+        },
+        async setLdrThreshold(low, high) {
+            await fetch(`${espAddress}/set_ldr_threshold_range?low=${low}&high=${high}`);
         }
-    } else {
-        ledVisual.className = 'led-indicator led-off'; ledSourceEl.textContent = 'Wyłączony'; ledTimerEl.textContent = 'Gotowy do użycia';
-        progressContainer.style.display = 'none'; ledTotalTime = 0
+    };
+
+    // --- FUNKCJE AKTUALIZACJI UI ---
+    function updateConnectionStatus(status, message) {
+        elements.connectionStatus.className = `connection-status-bar ${status}`;
+        elements.connectionStatus.innerHTML = message;
+        if (status === 'connecting') {
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+            elements.connectionStatus.prepend(spinner);
+        }
     }
-    document.getElementById('ldr-value').textContent = data.ldrValue;
-    document.getElementById('ldr-bar').style.width = `${(data.ldrValue / 1023) * 100}%`;
-    document.getElementById('pir-status').textContent = data.isPirActive ? 'AKTYWNY' : 'NIEAKTYWNY';
-    document.getElementById('pir-status').style.color = data.isPirActive ? 'var(--success)' : 'var(--text-secondary)';
-    const lowSlider = document.getElementById('ldr-range-low'), highSlider = document.getElementById('ldr-range-high');
-    if (document.activeElement !== lowSlider) lowSlider.value = data.ldrThresholdLow;
-    if (document.activeElement !== highSlider) highSlider.value = data.ldrThresholdHigh;
-    document.getElementById('ldr-threshold-display').textContent = `${lowSlider.value} - ${highSlider.value}`;
-    const modeOptions = document.querySelectorAll('.mode-option');
-    modeOptions.forEach((option, index) => { if (index === data.controlMode) option.classList.add('active'); else option.classList.remove('active') });
-    document.getElementById('sunrise-time').textContent = data.sunriseTime || '--:--';
-    document.getElementById('sunset-time').textContent = data.sunsetTime || '--:--';
-    const logsContainer = document.getElementById('logs-container');
-    if (data.logs && data.logs.length > 0) {
-        logsContainer.innerHTML = '';
-        data.logs.slice(0, 50).forEach(log => {
-            const logEntry = document.createElement('div'); logEntry.className = 'log-entry';
-            let icon = 'fa-info-circle', color = 'var(--text-secondary)'; const lowerLog = log.toLowerCase();
-            if (lowerLog.includes('on')) { icon = 'fa-toggle-on'; color = 'var(--success)' }
-            if (lowerLog.includes('off')) { icon = 'fa-toggle-off'; color = 'var(--warning)' }
-            if (lowerLog.includes('pir')) { icon = 'fa-running'; color = '#ffab00' }
-            if (lowerLog.includes('ldr')) { icon = 'fa-sun'; color = '#ffd600' }
-            if (lowerLog.includes('err') || lowerLog.includes('błąd')) { icon = 'fa-exclamation-triangle'; color = 'var(--error)' }
-            if (lowerLog.includes('wifi')) { icon = 'fa-wifi'; color = 'var(--primary)' }
-            if (lowerLog.includes('ok')) color = 'var(--success)';
-            const timeMatch = log.match(/\[(.*?)\]/), time = timeMatch ? timeMatch[1] : '', message = log.replace(/\[.*?\]/, '').trim();
-            logEntry.innerHTML = `<span class="log-time" style="color:${color};">${time}</span><i class="fas ${icon} log-icon" style="color:${color}"></i><span class="log-message">${message}</span>`;
-            logsContainer.appendChild(logEntry)
-        })
-    } else logsContainer.innerHTML = '<div class="log-entry"><i class="fas fa-history log-icon"></i><span class="log-message">Brak logów.</span></div>'
-}
 
-function sendRequest(endpoint, options = {}, callback) {
-    fetch(espAddress + endpoint, options)
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            // Jeśli endpoint nie zwraca JSON, np. toggle, to nie próbuj go parsować
-            if (response.headers.get("content-type")?.includes("application/json")) {
-                return response.json();
+    function updateUI(data) {
+        // LED Status
+        const isLedOn = data.ledState;
+        elements.ledIndicator.classList.toggle('on', isLedOn);
+        elements.ledStatusHeading.textContent = isLedOn ? 'Stan: Włączony' : 'Stan: Wyłączony';
+        elements.ledSourceText.textContent = `Źródło: ${data.ledSource || 'Brak'}`;
+        elements.toggleButton.innerHTML = `<i class="fas fa-power-off"></i> ${isLedOn ? 'Wyłącz Światło' : 'Włącz Światło'}`;
+
+        // Timer i Progress Bar
+        if (isLedOn && data.timeRemaining > 0) {
+            const minutes = Math.floor(data.timeRemaining / 60);
+            const seconds = String(data.timeRemaining % 60).padStart(2, '0');
+            elements.ledTimerText.textContent = `Wyłączy się za: ${minutes}m ${seconds}s`;
+            elements.progressBarContainer.style.opacity = '1';
+
+            if (state.totalTime === 0 || data.timeRemaining > state.totalTime) {
+                state.totalTime = data.timeRemaining;
             }
-            return response.text();
-        })
-        .then(data => {
-            if (callback) callback(data);
-        })
-        .catch(error => {
-            console.error(`Błąd zapytania do ${endpoint}:`, error);
-            document.getElementById('led-source').textContent = 'Błąd połączenia!';
+            const progressPercent = (data.timeRemaining / state.totalTime) * 100;
+            elements.progressBar.style.width = `${progressPercent}%`;
+        } else {
+            elements.ledTimerText.textContent = '';
+            elements.progressBarContainer.style.opacity = '0';
+            elements.progressBar.style.width = '0%';
+            state.totalTime = 0;
+        }
+
+        // Tryb sterowania i PIR
+        elements.modeButtons.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.mode) === data.controlMode);
         });
-}
+        elements.pirStatusText.textContent = data.isPirActive ? 'Aktywny' : 'Nieaktywny';
+        elements.pirStatusText.className = `status-badge ${data.isPirActive ? 'active' : ''}`;
 
+        // Info
+        elements.sunriseTime.textContent = data.sunriseTime || 'N/A';
+        elements.sunsetTime.textContent = data.sunsetTime || 'N/A';
+        elements.ldrValue.textContent = data.ldrValue;
 
-function toggleLed() { sendRequest('/toggle_www', { method: 'POST' }, () => setTimeout(fetchStatus, 200)) }
-function setControlMode(mode) { sendRequest(`/set_control_mode?mode=${mode}`, {}, () => setTimeout(fetchStatus, 200)) }
-function handleSliderInput() {
-    const lowSlider = document.getElementById('ldr-range-low'), highSlider = document.getElementById('ldr-range-high');
-    let low = parseInt(lowSlider.value), high = parseInt(highSlider.value);
-    if (document.activeElement === lowSlider && low > high) highSlider.value = low;
-    if (document.activeElement === highSlider && high < low) lowSlider.value = high;
-    document.getElementById('ldr-threshold-display').textContent = `${lowSlider.value} - ${highSlider.value}`;
-    clearTimeout(updateTimeout); updateTimeout = setTimeout(updateLdrThreshold, 500)
-}
-function updateLdrThreshold() {
-    const low = document.getElementById('ldr-range-low').value, high = document.getElementById('ldr-range-high').value;
-    sendRequest(`/set_ldr_threshold_range?low=${low}&high=${high}`, {}, () => setTimeout(fetchStatus, 200))
-}
-function forceRefresh() { fetchStatus() }
+        // LDR Sliders (tylko jeśli użytkownik ich nie przesuwa)
+        if (!state.isUpdatingSliders) {
+            elements.ldrMinSlider.value = data.ldrThresholdLow;
+            elements.ldrMaxSlider.value = data.ldrThresholdHigh;
+        }
+        elements.rangeMinVal.textContent = data.ldrThresholdLow;
+        elements.rangeMaxVal.textContent = data.ldrThresholdHigh;
+        
+        // Logs
+        const logsHtml = data.logs.map(log => `<div class="log-item">${log}</div>`).join('');
+        elements.logsContainer.innerHTML = logsHtml || '<p>Brak logów.</p>';
+    }
 
-function fetchStatus() {
-    // Dodajemy losowy parametr, aby uniknąć cache'owania przez przeglądarkę
-    sendRequest('/status?t=' + Date.now(), {}, data => updateUI(data));
-}
+    // --- GŁÓWNA PĘTLA POBIERANIA DANYCH ---
+    async function fetchDataLoop() {
+        try {
+            const data = await api.getStatus();
+            updateUI(data);
+            if (elements.connectionStatus.classList.contains('connecting') || elements.connectionStatus.classList.contains('error')) {
+                updateConnectionStatus('connected', '<i class="fas fa-check-circle"></i> Połączono z ESP');
+            }
+        } catch (error) {
+            console.error("Błąd komunikacji z ESP:", error);
+            updateConnectionStatus('error', '<i class="fas fa-exclamation-triangle"></i> Błąd połączenia z ESP');
+        }
+    }
 
-function updateSystemTime() { document.getElementById('system-time').textContent = new Date().toLocaleTimeString('pl-PL') }
-setInterval(fetchStatus, 1500);
-setInterval(updateSystemTime, 1000);
-document.addEventListener('DOMContentLoaded', () => { fetchStatus(); updateSystemTime() });
+    // --- EVENT LISTENERS ---
+    elements.toggleButton.addEventListener('click', async () => {
+        try {
+            await api.toggleLed();
+            fetchDataLoop(); // Natychmiastowe odświeżenie
+        } catch (e) {
+            console.error("Błąd przełączania LED:", e);
+        }
+    });
+
+    elements.modeButtons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const mode = btn.dataset.mode;
+            try {
+                await api.setControlMode(mode);
+                fetchDataLoop();
+            } catch (e) {
+                console.error("Błąd zmiany trybu:", e);
+            }
+        });
+    });
+
+    function handleSliderChange() {
+        state.isUpdatingSliders = false;
+        let minVal = parseInt(elements.ldrMinSlider.value);
+        let maxVal = parseInt(elements.ldrMaxSlider.value);
+        
+        if (minVal > maxVal) { // Zapobiegaj krzyżowaniu się suwaków
+            [minVal, maxVal] = [maxVal, minVal];
+            elements.ldrMinSlider.value = minVal;
+            elements.ldrMaxSlider.value = maxVal;
+        }
+
+        elements.rangeMinVal.textContent = minVal;
+        elements.rangeMaxVal.textContent = maxVal;
+        api.setLdrThreshold(minVal, maxVal).catch(e => console.error("Błąd ustawiania progu LDR:", e));
+    }
+
+    elements.ldrMinSlider.addEventListener('input', () => { state.isUpdatingSliders = true; });
+    elements.ldrMaxSlider.addEventListener('input', () => { state.isUpdatingSliders = true; });
+    elements.ldrMinSlider.addEventListener('change', handleSliderChange);
+    elements.ldrMaxSlider.addEventListener('change', handleSliderChange);
+
+    // --- Inicjalizacja ---
+    updateConnectionStatus('connecting', 'Łączenie z ESP...');
+    fetchDataLoop(); // Pierwsze pobranie
+    setInterval(fetchDataLoop, 2000); // Odświeżaj co 2 sekundy
+});
