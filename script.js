@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- KONFIGURACJA ---
     // ZMIEŃ TEN ADRES NA SWÓJ ADRES DUCKDNS
-    const espAddress = "https://corsproxy.io/?http%3A%2F%2Fsterowanieesp12.duckdns.org%3A50001";
+    const espAddress = "espprojekt.pl";
 
     // --- ELEMENTY DOM ---
     const elements = {
