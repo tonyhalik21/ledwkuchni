@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- KONFIGURACJA ---
     // ZMIEŃ TEN ADRES NA SWÓJ ADRES DUCKDNS
-    const espAddress = "espprojekt.pl";
+    const espAddress = "http://esp.espprojekt.pl/";
 
     // --- ELEMENTY DOM ---
     const elements = {
